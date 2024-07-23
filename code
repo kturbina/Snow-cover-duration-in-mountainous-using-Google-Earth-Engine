@@ -1,0 +1,715 @@
+
+//Установить дату начала и конца гидрологического года
+var start = '2021-10-01';
+var end = '2022-10-01';
+
+
+/////////////Обработка данных
+
+//Выбор и обрезка коллекции Terra
+var MOD10A1 = ee.ImageCollection('MODIS/061/MOD10A1')
+  .select('Snow_Albedo_Daily_Tile', 'Snow_Albedo_Daily_Tile_Class')
+  .filterDate(start, end);
+MOD10A1 = MOD10A1.map(function(image) {
+  return image.clip(geometry);
+});
+
+//Получение оригинальной проекции Модис
+var st3_full1 = ee.Image(MOD10A1.first());
+var modisProjection = st3_full1.projection();
+print('MODIS projection:', modisProjection);
+
+
+//Реклассификация
+var reclassify = function(image) {
+  var band_MOD10A1 = image.select('Snow_Albedo_Daily_Tile');
+  var band_MOD10A1_class = image.select('Snow_Albedo_Daily_Tile_Class');
+//// 1- снег, 2 - земля, 0 - ошибка
+  var reclassified_alb = band_MOD10A1.remap(
+  [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100],
+  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+);
+
+var fromList = [125, 137, 139];
+  var toList =   [2, 2, 2];
+  
+  var reclassified_class = band_MOD10A1_class.remap({
+  from: fromList,
+  to: toList,
+  defaultValue: 0
+});
+  return ee.ImageCollection([reclassified_class, reclassified_alb]).mosaic();
+};
+var combinedImage = MOD10A1.map(reclassify);
+
+
+//оформление
+var visualizationParams = {
+  min: 0,
+  max: 2,
+  palette: ['#FF82AB', 'white', '#204B11']
+};
+
+//Пример для отдельного дня
+var selectedImage = combinedImage.filterMetadata('system:index', 'equals', '2022_05_01');
+//Map.addLayer(selectedImage, visualizationParams, 'MOD10A1');
+
+//print (combinedImage)
+
+//список всех дат
+var extractIndex = function(image) {
+  return ee.Feature(null, {'index': image.get('system:index')});
+};
+
+var indices = combinedImage.map(extractIndex);
+var indexList = indices.aggregate_array('index');
+
+
+///Легенда
+var legendColors = ['#FF82AB', 'white', '#204B11'];
+var legendLabels = ['Cloud/Error', 'Snow', 'Earth/Water'];
+var legend = ui.Panel({
+  style: {
+    position: 'bottom-left',
+    padding: '8px',
+    width: '200px'
+  }
+});
+var legendTitle = ui.Label({
+  value: '',
+  style: {
+    fontWeight: 'bold',
+    fontSize: '18px',
+    margin: '0 0 4px 0',
+    padding: '0'
+  }
+});
+legend.add(legendTitle);
+for (var i = 0; i < legendColors.length; i++) {
+  var colorBox = ui.Label({
+    style: {
+      backgroundColor: legendColors[i],
+      padding: '8px',
+      margin: '0 0 4px 0'
+    }
+  });
+    var label = ui.Label({
+    value: legendLabels[i],
+    style: {
+      margin: '0 0 4px 6px'
+    }
+  });
+  legend.add(colorBox);
+  legend.add(label);
+}
+
+//Map.add(legend);
+
+
+
+//Выбор и обрезка коллекции Aqua
+var MYD10A1 = ee.ImageCollection('MODIS/061/MYD10A1')
+  .select('Snow_Albedo_Daily_Tile', 'Snow_Albedo_Daily_Tile_Class')
+  .filterDate(start, end);
+
+var MYD10A1 = MYD10A1.map(function(image) {
+  return image.clip(geometry);
+});
+
+//реклассификация
+var reclassify = function(image) {
+  var band_MYD10A1 = image.select('Snow_Albedo_Daily_Tile');
+  var band_MYD10A1_class = image.select('Snow_Albedo_Daily_Tile_Class');
+  
+  var reclassified_alb_MYD10A1 = band_MYD10A1.remap(
+  [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 127, 137, 139, 250, 251, 252, 253, 254, 111, 125, 150, 151, 101],
+  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+);
+
+var fromList = [125, 137, 139];
+  var toList =   [2, 2, 2];
+  
+  var reclassified_class_MYD10A1 = band_MYD10A1_class.remap({
+  from: fromList,
+  to: toList,
+  defaultValue: 0
+});
+  return ee.ImageCollection([reclassified_class_MYD10A1, reclassified_alb_MYD10A1]).mosaic();
+};
+
+var combinedImage_A = MYD10A1.map(reclassify);
+
+
+/////////////Шаг 1. Комбинация Aqua и Terra
+
+//Получение всех дат обоих коллекций
+var dates_A = combinedImage_A.aggregate_array('system:index');
+var dates = combinedImage.aggregate_array('system:index');
+var allDates = ee.List(dates_A).cat(ee.List(dates)).distinct();
+
+// Функция для объединения коллекций по датам
+// Если пиксель в изображении Terra считается снежным, а в Aqua бесснежным, то ему присваивается значение из Aqua, в любых других случаях берется значение Terra
+function mergeCollections(dateString) {
+  var date = ee.Date(dateString); 
+  var formattedDate = date.format('YYYY_MM_dd'); 
+
+  var image_A = combinedImage_A.filter(ee.Filter.eq('system:index', dateString)).first();
+  var image = combinedImage.filter(ee.Filter.eq('system:index', dateString)).first();
+
+  var imageExists = ee.Algorithms.If(ee.Algorithms.IsEqual(image, null), false, true);
+  var image_AExists = ee.Algorithms.If(ee.Algorithms.IsEqual(image_A, null), false, true);
+
+  return ee.Image(ee.Algorithms.If(imageExists, 
+          ee.Algorithms.If(image_AExists, 
+            image.unmask(image_A)  // Заменяет нули в image значениями из image_A
+            .where(image.eq(0), image_A), 
+            image),
+          image_A));
+}
+
+var combinedCollection = ee.ImageCollection(allDates.map(mergeCollections));
+
+print('a+t', combinedCollection);
+
+// //пример для отдельного дня
+// var selectedImage_2 = combinedCollection.filterMetadata('system:index', 'equals', '2022_05_15');
+// Map.addLayer(selectedImage_2, visualizationParams, 'Combined Visualization');
+
+
+
+
+///////////// Шаг 2. Временная комбинация
+
+//Функция получения предыдущего изображения
+var f_PreviousImage = function(date) { 
+  var currentIndex = date.format('YYYY_MM_dd');
+  var firstImageIndex = combinedCollection.first().get('system:index');
+  var isNotFirstImage = ee.String(currentIndex).compareTo(ee.String(firstImageIndex)).neq(0); //условие что выбранная дата не первый день в коллекции
+  var previousDate = date.advance(-1, 'day');
+  var previousIndex = previousDate.format('YYYY_MM_dd');
+  var previousImage = combinedCollection.filter(ee.Filter.eq('system:index', previousIndex));
+  var currentImage = combinedCollection.filter(ee.Filter.eq('system:index', currentIndex));
+  var resultImage = ee.ImageCollection(ee.Algorithms.If(isNotFirstImage, previousImage, currentImage));
+
+  return resultImage;
+};
+
+//Функция получения последующего изображения
+var f_NextImage = function(date) { 
+  var currentIndex = date.format('YYYY_MM_dd');
+  var lastImageIndex = ee.String(combinedCollection.sort('system:index', false).first().get('system:index')); //обратный порядок дат
+  var isNotLastImage = ee.String(currentIndex).compareTo(lastImageIndex).neq(0); //условие что выбранная дата не первый день в коллекции
+  var nextDate = date.advance(1, 'day');
+  var nextIndex = nextDate.format('YYYY_MM_dd');
+  var nextImage = combinedCollection.filter(ee.Filter.eq('system:index', nextIndex));
+  var currentImage = combinedCollection.filter(ee.Filter.eq('system:index', currentIndex));
+  var resultImage = ee.ImageCollection(ee.Algorithms.If(isNotLastImage, nextImage, currentImage));
+
+  return resultImage;
+};
+
+//Функция временной комбинации
+//Если в предыдущий и последующий от текущей даты день пиксель является бесснежным, то и в текущий день он будет считаться бесснежным
+var processCollection = function(image) {
+  var date = ee.Date.parse('YYYY_MM_dd', image.get('system:index'));
+  
+  var previousImage = f_PreviousImage(date).first();
+  var nextImage = f_NextImage(date).first();
+  
+  var combined = image.where(
+    image.eq(0).and(previousImage.eq(1)).and(nextImage.eq(1)), 1)
+    .where(image.eq(0).and(previousImage.eq(2)).and(nextImage.eq(2)), 2);
+
+  return combined.set('system:index', image.get('system:index'));
+};
+
+var timecomb1 = combinedCollection.map(processCollection);
+
+///////////// Шаг 2. Вторая часть
+
+//Функция получения предпредыдущего изображения
+var f_TwoDaysBeforeImage = function(date) { 
+  var currentIndex = date.format('YYYY_MM_dd');
+  var sortedCollection = combinedCollection.sort('system:index', true);
+  var firstImageIndex = ee.Image(sortedCollection.first()).get('system:index');
+  var secondImage = ee.Image(sortedCollection.toList(2).get(1)); 
+  var secondImageIndex = secondImage.get('system:index');
+
+  var isNotFirstOrSecondImage = ee.Algorithms.If(
+    ee.String(currentIndex).compareTo(ee.String(firstImageIndex)).neq(0).and(
+      ee.String(currentIndex).compareTo(ee.String(secondImageIndex)).neq(0)),
+    true,
+    false);
+  var twoDaysBeforeDate = date.advance(-2, 'day');
+  var twoDaysBeforeIndex = twoDaysBeforeDate.format('YYYY_MM_dd');
+  var twoDaysBeforeImage = combinedCollection.filter(ee.Filter.eq('system:index', twoDaysBeforeIndex));
+  var currentImage = combinedCollection.filter(ee.Filter.eq('system:index', currentIndex));
+  var resultImage = ee.Algorithms.If(
+    isNotFirstOrSecondImage,
+    twoDaysBeforeImage,
+    currentImage
+  );
+
+  return ee.ImageCollection(resultImage);
+};
+
+//Функция получения следующего после следующего изображения
+var f_TwoDaysAfterImage = function(date) { 
+  var currentIndex = date.format('YYYY_MM_dd');
+  var sortedCollection = combinedCollection.sort('system:index', true);
+  var collectionSize = sortedCollection.size();
+  var lastImageIndex = ee.Image(sortedCollection.toList(1, collectionSize.subtract(1)).get(0)).get('system:index');
+  var secondToLastImageIndex = ee.Image(sortedCollection.toList(1, collectionSize.subtract(2)).get(0)).get('system:index');
+  var isNotLastOrSecondToLastImage = ee.Algorithms.If(
+    ee.String(currentIndex).compareTo(ee.String(lastImageIndex)).neq(0).and(
+      ee.String(currentIndex).compareTo(ee.String(secondToLastImageIndex)).neq(0)),
+    true,
+    false);
+  var twoDaysAfterDate = date.advance(2, 'day');
+  var twoDaysAfterIndex = twoDaysAfterDate.format('YYYY_MM_dd');
+  var twoDaysAfterImage = combinedCollection.filter(ee.Filter.eq('system:index', twoDaysAfterIndex));
+
+  var currentImage = combinedCollection.filter(ee.Filter.eq('system:index', currentIndex));
+  var resultImage = ee.Algorithms.If(
+    isNotLastOrSecondToLastImage,
+    twoDaysAfterImage,
+    currentImage
+  );
+
+  return ee.ImageCollection(resultImage);
+};
+
+//Функция временной комбинации
+var processCollection = function(image) {
+  var date = ee.Date.parse('YYYY_MM_dd', image.get('system:index'));
+  var previousImage = f_PreviousImage(date).first();
+  var nextImage = f_NextImage(date).first();
+  var prepreviousImage = f_TwoDaysBeforeImage(date).first();
+  var nenextImage = f_TwoDaysAfterImage(date).first();
+  var combined1 = image.where(
+    image.eq(0).and(previousImage.eq(1)).and(nenextImage.eq(1)), 1)
+    .where(image.eq(0).and(prepreviousImage.eq(2)).and(nextImage.eq(2)), 2)
+    .where(image.eq(0).and(prepreviousImage.eq(1)).and(nextImage.eq(1)), 1)
+    .where(image.eq(0).and(previousImage.eq(2)).and(nenextImage.eq(2)), 2);
+  return combined1.set('system:index', image.get('system:index'));
+};
+
+var timecomb2 = timecomb1.map(processCollection);
+
+
+//изменение значения классов
+var remapped_1_collection1 = timecomb2.map(function(image) {
+  var remapped_1 = image.select('remapped');
+
+// -1 - земля, 0 - облака, 1 - снег
+  var reclassified = remapped_1.remap([0, 1, 2], [0, 1, -1]);
+
+  return reclassified.rename('remapped');
+});
+
+
+
+///////////// Шаг 3. Расчет высоты снеговой линии
+
+//Вычисление процента облачности
+var calculatePercentage = function(image) {
+  //Создание маски
+  var maskClouds = image.eq(0); //маска облаков
+  var maskTotal = image.mask(); //маска всех пикселей
+
+  //Применение масок
+  var maskedClouds = image.updateMask(maskClouds);
+  var maskedTotal = image.updateMask(maskTotal);
+
+  //подсчет пикселей
+  var totalPixels = maskedTotal.reduceRegion({
+    reducer: ee.Reducer.count(),
+    geometry: geometry,
+    scale: 500,  
+    maxPixels: 1e13
+  }).get('remapped');
+
+  var cloudPixels = maskedClouds.reduceRegion({
+    reducer: ee.Reducer.count(),
+    geometry: geometry,
+    scale: 500, 
+    maxPixels: 1e13
+  }).get('remapped');
+
+  //подсчет процента
+  var percentCl = ee.Number(cloudPixels).divide(totalPixels).multiply(100);
+
+  return image.set('Percent_Cloud', percentCl);
+};
+
+var TC_withPercentages = remapped_1_collection1.map(calculatePercentage);
+print (TC_withPercentages)
+
+//Выбираются только изображения с облачностью менее 30%
+var FilterCloud = TC_withPercentages.filter(ee.Filter.lt('Percent_Cloud', 30));
+print('Filtered Images:', FilterCloud);
+
+
+////Загрузка ЦМР
+var Height = ee.Image('USGS/SRTMGL1_003').select('elevation').clip(geometry);
+
+////Использовать только изображения с облачностью менее 30% 
+var St3 = remapped_1_collection1.filter(ee.Filter.inList('system:index', FilterCloud.aggregate_array('system:index')));
+print('step 3', St3);
+
+//// Вычисление минимального значения
+///замена всех -1 на 0, чтобы оставить только снег (облака = 0)
+var updatePixelValues = function(image) {
+  var updatedValues = image.select('remapped')
+    .where(image.select('remapped').eq(-1), 0)
+  var multipliedValues = updatedValues.multiply(Height);
+  return image.addBands(multipliedValues.rename('min'));
+};
+
+var updatedCollection = St3.map(updatePixelValues);
+var min1 = updatedCollection.select('min');
+
+//Маска для 0 значений
+var zero1 = function(image) {
+  var minBand = image.select('min');
+  var mask = minBand.gt(0); 
+  var updatedMinBand = minBand.updateMask(mask);
+  var updatedImage = image.addBands(updatedMinBand, ['min'], true);
+  return updatedImage;
+};
+
+var Min0 = updatedCollection.map(zero1).select('min');
+
+print('Min0:', Min0); 
+
+
+// Расчет минимального значения
+var min_f = function(image) {
+  var minValue = image.reduceRegion({
+    reducer: ee.Reducer.min(),
+    geometry: geometry,
+    scale: 100,
+    maxPixels: 10000000000000000000,
+  });
+
+  // внесение минимального значения в image property
+  return image.set('minValue', minValue.get('min'));
+};
+
+var Min_val = Min0.map(min_f);
+print('min value', Min_val);
+
+
+// Максимальное значение
+// Замена всех 0 на 1, а всех 1 на 0, чтобы оставить только не снег (облака = 0)
+var updatePixelValues1 = function(image) {
+  var updatedValues = image.select('remapped')
+    .where(image.select('remapped').eq(1), 0);
+  updatedValues = updatedValues.where(updatedValues.eq(0), 1);
+
+var multipliedValues = ee.Image(1).subtract(updatedValues).multiply(Height).divide(2); 
+return image.addBands(multipliedValues.rename('max'));
+};
+var updatedCollection1 = St3.map(updatePixelValues1);
+var max1 = updatedCollection1.select('max');
+
+//Маска для 0 значений
+var zero2 = function(image) {
+  var maxBand = image.select('max');
+  var mask = maxBand.gt(0); 
+  var updatedMinBand1 = maxBand.updateMask(mask);
+  var updatedImage1 = image.addBands(updatedMinBand1, ['max'], true);
+  return updatedImage1;
+};
+
+var max0 = updatedCollection1.map(zero2).select('max');
+
+// Функция максимального значения 
+var max_f = function(image) {
+  var minValue = image.reduceRegion({
+    reducer: ee.Reducer.max(),
+    geometry: geometry,
+    scale: 100,
+    maxPixels: 10000000000000000000,
+  });
+  return image.set('maxValue', minValue.get('max'));
+};
+
+var Max_val = max0.map(max_f);
+print('Max_val', Max_val);
+
+
+////Соединение каналов
+
+
+//Присоединение максимального значения
+var filter = ee.Filter.equals({
+  leftField: 'system:index',
+  rightField: 'system:index'
+});
+
+var join = ee.Join.saveFirst({
+  matchKey: 'max0_image'
+});
+var joinedCollection = ee.ImageCollection(join.apply({
+  primary: St3,
+  secondary: Max_val,
+  condition: filter
+}));
+var mergeBands = function(image) {
+  var max0_image = ee.Image(image.get('max0_image'));
+  return image.addBands(max0_image);
+};
+var finalCollection = joinedCollection.map(mergeBands);
+
+//Присоединение минимального значения
+var filter = ee.Filter.equals({
+  leftField: 'system:index',
+  rightField: 'system:index'
+});
+
+var join = ee.Join.saveFirst({
+  matchKey: 'Min_val_image'
+});
+
+var joinedCollection2 = ee.ImageCollection(join.apply({
+  primary: finalCollection,
+  secondary: Min_val,
+  condition: filter
+}));
+
+var mergeBands2 = function(image) {
+  var Min_val_image = ee.Image(image.get('Min_val_image'));
+  return image.addBands(Min_val_image);
+};
+
+var finalCollectionWithMinVal = joinedCollection2.map(mergeBands2);
+
+//Присоединение ЦМР
+var rem_dem = finalCollectionWithMinVal.map(function(image) {
+  return image.addBands(Height.rename('Height'));
+});
+
+print('Joined Collection', rem_dem);
+
+//Изменение значений
+var remapValues = function(image) {
+  var minVal = ee.Number(ee.Image(image.get('Min_val_image')).get('minValue'));
+  var maxVal = ee.Number(ee.Image(image.get('max0_image')).get('maxValue'));
+  
+  var height = image.select('Height');
+  var remapped = image.select('remapped');
+
+  var mask = remapped.eq(0);
+  var updatedRemapped = remapped
+    .where(mask.and(height.gt(maxVal)), 1)  // If 'Height' > 'maxValue'
+    .where(mask.and(height.lt(minVal)), -1) // If 'Height' < 'minValue'
+    .where(mask.and(height.gte(minVal).and(height.lte(maxVal))), 0);
+
+  var updatedImage = image.addBands(updatedRemapped.rename('remapped'), null, true);
+  return updatedImage;
+};
+
+var remappedCollection = rem_dem.map(remapValues);
+
+// Создание коллекции, содержащий только канал с измененными значениями
+var snowline = remappedCollection.select('remapped');
+var snowline = snowline.map(function(image) {
+  return image.reproject({crs: modisProjection})}); // изменение проекции на оригинальную modis
+
+
+///////////// Шаг 4. Пространственная интерполяция
+
+//Получение полной коллекции изображений без фильтра облачности 
+var remappedCollectionIndexes = snowline.aggregate_array('system:index');
+var st3_full = remapped_1_collection1.map(function(image) {
+  // Проверяем, содержится ли изображение в remappedCollection по индексу
+  var index = image.get('system:index');
+  var condition = remappedCollectionIndexes.contains(index);
+  // Если условие истинно, выбираем изображение из remappedCollection
+  return ee.Image(ee.Algorithms.If(condition,
+                                  snowline.filter(ee.Filter.eq('system:index', index)).first(),
+                                  image));
+});
+
+
+var transformImage = function(image) {
+  var remapped = image.select('remapped');
+  // Матрица в форме креста
+  var kernel = ee.Kernel.fixed(3, 3, 
+    [[0, 1, 0], 
+    [1, 0, 1], 
+    [0, 1, 0]]);
+
+  // Подсчет пикселей
+  var neighbors1 = remapped.eq(1).reduceNeighborhood(ee.Reducer.sum(), kernel);
+  var neighborsMinus1 = remapped.eq(-1).reduceNeighborhood(ee.Reducer.sum(), kernel);
+
+  // Условие, что количесто соседних пикселей с необлачным значение больше 3
+  var changeTo1 = neighbors1.gte(3); 
+  var changeToMinus1 = neighborsMinus1.gte(3); 
+  
+  // Маска нулевых значений
+  var mask0 = remapped.eq(0);
+  var updatedRemapped = remapped
+    .where(mask0.and(changeTo1), 1)
+    .where(mask0.and(changeToMinus1), -1);
+
+  return image.addBands(updatedRemapped.rename('remapped'), null, true);
+};
+
+var st4 = st3_full.map(transformImage);
+
+// Перепроецирование
+var st4 = st4.map(function(image) {
+  return image.reproject({crs: modisProjection})});
+
+
+///////////// Шаг 5. Комбинация интерполяции и высоты
+
+//Добавление ЦМР в канал
+var st4_dem = st4.map(function(image) {
+  return image.addBands(Height.rename('Height'));
+});
+print (st4_dem)
+
+// Функция, если значение одного из 8 пикселей вокруг искомого - снег и по высоте он ниже, то искомый пиксель считается снежным 
+var updatedCollection = st4_dem.map(function(image) {
+  var remapped = image.select('remapped');
+  var height = image.select('Height');
+
+  var kernel = ee.Kernel.fixed({
+    width: 3,
+    height: 3,
+    weights: [[1, 1, 1],
+              [1, 0, 1],
+              [1, 1, 1]],
+    x: 1,
+    y: 1
+  });
+  
+  var neighborsRemapped = remapped.neighborhoodToBands(kernel);
+  var neighborsHeight = height.neighborhoodToBands(kernel);
+  
+  var maskZero = remapped.eq(0);
+  
+  // Проверка условия для соседних пикселей и выбор максимального значения
+  var condition = neighborsRemapped.eq(1)
+    .and(neighborsHeight.lt(height))
+    .reduce(ee.Reducer.max())
+    .rename('condition');
+  
+  var updatedRemapped = remapped.where(maskZero.and(condition), 1);
+  
+  return image.addBands(updatedRemapped.rename('remapped_updated'), null, true);
+});
+
+var st5 = updatedCollection.select('remapped_updated'); 
+
+// Перепроецирование
+var st5 = st5.map(function(image) {
+  return image.reproject({crs: modisProjection})});
+
+///Хронологический порядок дат
+
+function sortImagesByDate(imageCollection) {
+  var sortedCollection = imageCollection.sort('system:index');
+  sortedCollection.aggregate_array('system:index').evaluate(function(dates) {
+  });
+  return sortedCollection;
+}
+
+var st5 = sortImagesByDate(st5);
+
+///////////// Шаг 6. Временная комбинация
+
+var listOfImages = st5.toList(st5.size());
+
+function updateImage1(prev, curr) {
+  prev = ee.Image(prev);
+  curr = ee.Image(curr);
+  // Обновляем нулевые значения в текущем изображении на основе предыдущего
+  return curr.where(prev.neq(0).and(curr.eq(0)), prev);
+}
+
+function processCollection1(imageList) {
+  // обратный хронологический порядок
+  var reversedList = imageList.reverse();
+    // Первое изображение с конца
+  var firstImage = ee.Image(reversedList.get(0));
+  // Обновляем каждое изображение, начиная с последнего
+  var updatedImages = ee.List(reversedList.slice(1)).iterate(function(curr, result) {
+    var resultAsList = ee.List(result); 
+    var prev = ee.Image(resultAsList.get(-1)); // Получаем последнее обновленное изображение из списка
+    var updated = updateImage1(prev, curr); // Обновляем текущее изображение
+    return resultAsList.add(updated); // Добавляем обновленное изображение в список
+  }, ee.List([firstImage])); 
+
+  // Возвращаем изображения к хронологическому порядку
+  var finalImages = ee.List(updatedImages).reverse();
+  return ee.ImageCollection.fromImages(finalImages);
+}
+
+var st6 = processCollection1(listOfImages);
+
+
+
+
+
+///////////// Вычисление метрик
+
+
+///////////// LOS
+//Функция для создания маски, где пиксели равны 1
+function maskPixels9(image) {
+  return image.eq(1);
+}
+
+// Применяем маску ко всей коллекции
+var maskedCollection1 = st6.map(maskPixels9);
+// Суммируем значения по всей коллекции
+var countDays1 = maskedCollection1.reduce(ee.Reducer.sum());
+// Перевод формата в float
+var LOS = countDays1.toFloat();
+
+
+///////////// SOS
+var SOS1 = st6.filter(ee.Filter.rangeContains({
+      field: 'system:index',
+      minValue: '2021_10_01',//Начало гидрологического года
+      maxValue: '2022_01_25'// 25 января 
+  }));
+
+// Функция для создания маски, где пиксели равны 1
+function maskPixels8(image) {
+  return image.eq(1);
+}
+// Применяем маску ко всей коллекции
+var maskedCollection1 = SOS1.map(maskPixels8);
+// Суммируем значения по всей коллекции
+var sumsos = maskedCollection1.reduce(ee.Reducer.sum());
+
+// Вычисляем результат: 116 минус количество дней
+var SOS = ee.Image.constant(116).subtract(sumsos);
+var SOS = SOS.toFloat();
+
+
+///////////// EOS
+
+var EOS1 = st6.filter(ee.Filter.rangeContains({
+      field: 'system:index',
+      minValue: '2022_01_25', // 25 января
+      maxValue: '2022_10_01' // конец гидрологического года
+  }));
+
+// Функция для создания маски, где пиксели равны 1
+function maskPixels8(image) {
+  return image.eq(1);
+}
+// Применяем маску ко всей коллекции
+var maskedCollection11 = EOS1.map(maskPixels8);
+// Суммируем значения по всей коллекции
+var sumsos1 = maskedCollection11.reduce(ee.Reducer.sum());
+// Вычисляем результат: 116 плюс количество дней
+var EOS = ee.Image.constant(116).add(sumsos1);
+var EOS = EOS.toFloat();
